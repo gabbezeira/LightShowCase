@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gabbezeira Light Showcase</title>
+    <title>Three.js Light Showcase</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         body {
@@ -70,8 +70,7 @@
         scene.add(wall);
 
         const textureLoader = new THREE.TextureLoader();
-        // Aumentando o raio das esferas para 1.5
-        const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32); 
+        const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32);
         const spheres = [];
         const originalMaterials = [];
 
@@ -82,8 +81,7 @@
                 metalness: 1,
             });
             const sphere = new THREE.Mesh(sphereGeometry, material);
-            // Centralizando verticalmente as esferas
-            sphere.position.set(positionX, 2, 0); 
+            sphere.position.set(positionX, 2, 0);
             sphere.castShadow = true;
             sphere.receiveShadow = true;
             spheres.push(sphere);
@@ -103,6 +101,19 @@
 
         const rayHelpers = [];
 
+        function createLampIcon(position) {
+            const lampTexture = new THREE.TextureLoader().load(
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/svgs/solid/lightbulb.svg'
+            );
+            const lampMaterial = new THREE.MeshBasicMaterial({ map: lampTexture, transparent: true });
+            const lampGeometry = new THREE.PlaneGeometry(0.5, 0.5);
+            const lampIcon = new THREE.Mesh(lampGeometry, lampMaterial);
+            lampIcon.position.copy(position);
+            lampIcon.position.z += 0.1; // Ajustar um pouco para frente
+            scene.add(lampIcon);
+            return lampIcon;
+        }
+
         function addLight(position) {
             const spotLight = new THREE.SpotLight(0xffffff, 5);
             spotLight.castShadow = true;
@@ -110,22 +121,12 @@
             spotLight.angle = Math.PI / 6;
             spotLight.penumbra = 0.2;
 
-            const lightHelper = new THREE.SpotLightHelper(spotLight);
-            rayHelpers.push(lightHelper);
-
-            const lightIconGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-            const lightIconMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffff00,
-                emissive: 0xffff00,
-                emissiveIntensity: 1.5
-            });
-            const lightIcon = new THREE.Mesh(lightIconGeometry, lightIconMaterial);
-            lightIcon.position.copy(position);
-            scene.add(lightIcon);
+            createLampIcon(position);
 
             scene.add(spotLight);
         }
 
+        // Eventos de clique para adicionar luzes e ajustar materiais
         window.addEventListener('click', (event) => {
             const rect = renderer.domElement.getBoundingClientRect();
             if (event.clientY <= 50 && event.clientX >= rect.left && event.clientX <= rect.right) {
@@ -144,86 +145,12 @@
             addLight(pos);
         });
 
-        let raysVisible = false;
-
-        document.getElementById('toggle-rays').addEventListener('click', () => {
-            raysVisible = !raysVisible;
-            rayHelpers.forEach(helper => {
-                if (raysVisible) {
-                    scene.add(helper);
-                } else {
-                    scene.remove(helper);
-                }
-            });
-            document.getElementById('toggle-rays').innerText = raysVisible ? "Ocultar Raízes de Luz" : "Mostrar Raízes de Luz";
-        });
-
-        let wireframeVisible = false;
-
-        document.getElementById('toggle-wireframe').addEventListener('click', () => {
-            wireframeVisible = !wireframeVisible;
-
-            const wireframeMaterial = new THREE.MeshBasicMaterial({ wireframe: true, color: 0xffffff });
-
-            spheres.forEach((sphere, index) => {
-                sphere.material = wireframeVisible ? wireframeMaterial : originalMaterials[index];
-            });
-
-            floor.material = wireframeVisible ? wireframeMaterial : floorMaterial;
-            wall.material = wireframeVisible ? wireframeMaterial : wallMaterial;
-        });
-
-        let selectedSphere = null;
-        let offset = new THREE.Vector3();
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-
-        function onMouseDown(event) {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(spheres);
-
-            if (intersects.length > 0) {
-                selectedSphere = intersects[0].object;
-                offset.copy(intersects[0].point).sub(selectedSphere.position);
-            }
-        }
-
-        function onMouseMove(event) {
-            if (selectedSphere) {
-                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObject(floor);
-
-                if (intersects.length > 0) {
-                    selectedSphere.position.copy(intersects[0].point).add(offset);
-                    selectedSphere.position.y = Math.max(selectedSphere.position.y, 1);
-                }
-            }
-        }
-
-        function onMouseUp() {
-            if (selectedSphere) {
-                selectedSphere.material.emissive.set(0x000000);
-                selectedSphere = null;
-            }
-        }
-
-        window.addEventListener('mousedown', onMouseDown);
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
 
         function animate() {
             requestAnimationFrame(animate);
-            spheres.forEach(sphere => {
-                sphere.rotation.x += 0.01;
-                sphere.rotation.y += 0.01;
-            });
-
+            controls.update();
             renderer.render(scene, camera);
         }
 
