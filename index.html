@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Three.js Light Showcase</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         body {
             margin: 0;
@@ -17,7 +18,7 @@
             justify-content: center;
             align-items: center;
         }
-        #toggle-rays, #toggle-wireframe {
+        #toggle-rays, #toggle-wireframe, #toggle-reflective-floor {
             position: relative;
             top: 10px;
             left: 10px;
@@ -30,54 +31,38 @@
     </style>
 </head>
 <body>
+    <button id="toggle-rays">Mostrar Raízes de Luz</button>
+    <button id="toggle-wireframe">Mostrar Wireframe</button>
+    <button id="toggle-reflective-floor">Ativar Chão Reflexivo</button>
     <div id="canvas-container"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
     <script>
-        // Inicializando a cena, câmera e renderizador
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
-
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 3, 10);  // Posição ajustada para garantir visibilidade
-
+        camera.position.set(0, 5, 10);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.physicallyCorrectLights = true;
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // Iluminação: Luz ambiente com intensidade maior
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);  // Intensidade aumentada
+        const ambientLight = new THREE.AmbientLight(0x404040, 10);
         scene.add(ambientLight);
 
-        // Adicionando uma luz direcional para iluminação adicional
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 7);
-        directionalLight.castShadow = true;
-        scene.add(directionalLight);
-
-        // Criação do chão
+        // Criação do chão normal e do reflexivo (não visível inicialmente)
         const floorGeometry = new THREE.PlaneGeometry(20, 20);
-        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 });
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = -1;
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // Criação da parede (agora mais clara para melhorar a visibilidade)
-        const wallGeometry = new THREE.PlaneGeometry(20, 10);
-        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.5 });
-        const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall.rotation.y = Math.PI;
-        wall.position.set(0, 5, -6);
-        wall.receiveShadow = true;
-        scene.add(wall);
-
-        // Criação das esferas
+        // Texturas e esferas
         const textureLoader = new THREE.TextureLoader();
-        const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32);
+        const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32); 
         const spheres = [];
 
         function createSphere(texturePath, positionX) {
@@ -87,35 +72,62 @@
                 metalness: 1,
             });
             const sphere = new THREE.Mesh(sphereGeometry, material);
-            sphere.position.set(positionX, 1.5, 0);  // Altura ajustada para ficar acima do chão
+            sphere.position.set(positionX, 2, 0); 
             sphere.castShadow = true;
             sphere.receiveShadow = true;
             spheres.push(sphere);
             return sphere;
         }
 
-        const textureURL = 'https://threejsfundamentals.org/threejs/resources/images/wall.jpg';
-        const sphere1 = createSphere(textureURL, -3);
-        const sphere2 = createSphere(textureURL, 0);
-        const sphere3 = createSphere(textureURL, 3);
+        const sphere1 = createSphere('https://threejsfundamentals.org/threejs/resources/images/wall.jpg', -3);
+        const sphere2 = createSphere('https://cdn.pixabay.com/photo/2016/02/01/04/27/background-1172581_1280.jpg', 0);
+        const sphere3 = createSphere('https://threejsfundamentals.org/threejs/resources/images/wall.jpg', 3);
         scene.add(sphere1);
         scene.add(sphere2);
         scene.add(sphere3);
 
-        // Controles de órbita
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
+        // Função para criar o reflexo no chão
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(1024, { format: THREE.RGBAFormat, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+        const cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
+        const reflectiveFloorMaterial = new THREE.MeshBasicMaterial({
+            envMap: cubeRenderTarget.texture,
+        });
 
-        // Função de animação
+        let reflectiveFloorEnabled = false;
+
+        // Alternar entre o chão normal e o reflexivo
+        document.getElementById('toggle-reflective-floor').addEventListener('click', () => {
+            reflectiveFloorEnabled = !reflectiveFloorEnabled;
+
+            if (reflectiveFloorEnabled) {
+                // Substituir o material do chão pelo reflexivo
+                floor.material = reflectiveFloorMaterial;
+                document.getElementById('toggle-reflective-floor').innerText = "Desativar Chão Reflexivo";
+            } else {
+                // Reverter para o material padrão
+                floor.material = floorMaterial;
+                document.getElementById('toggle-reflective-floor').innerText = "Ativar Chão Reflexivo";
+            }
+        });
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
+
+            if (reflectiveFloorEnabled) {
+                // Atualizar o reflexo do cubo
+                floor.visible = false;  // Ocultar o chão antes de renderizar o cubo
+                cubeCamera.position.copy(camera.position);  // Posição da câmera para capturar o reflexo
+                cubeCamera.update(renderer, scene);
+                floor.visible = true;  // Mostrar o chão novamente
+            }
+
             renderer.render(scene, camera);
         }
 
         animate();
 
-        // Ajuste do tamanho da tela ao redimensionar a janela
         window.addEventListener('resize', () => {
             const width = window.innerWidth;
             const height = window.innerHeight;
