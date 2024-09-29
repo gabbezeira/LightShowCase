@@ -70,7 +70,6 @@
         scene.add(wall);
 
         const textureLoader = new THREE.TextureLoader();
-        // Aumentando o raio das esferas para 1.5
         const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32); 
         const spheres = [];
         const originalMaterials = [];
@@ -82,7 +81,6 @@
                 metalness: 1,
             });
             const sphere = new THREE.Mesh(sphereGeometry, material);
-            // Centralizando verticalmente as esferas
             sphere.position.set(positionX, 2, 0); 
             sphere.castShadow = true;
             sphere.receiveShadow = true;
@@ -220,7 +218,6 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Fazendo as esferas girarem ao longo dos eixos X e Y
             spheres.forEach(sphere => {
                 sphere.rotation.x += 0.01;
                 sphere.rotation.y += 0.01;
