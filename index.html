@@ -18,7 +18,7 @@
             justify-content: center;
             align-items: center;
         }
-        #toggle-rays, #toggle-wireframe, #toggle-reflective-floor {
+        #toggle-rays, #toggle-wireframe {
             position: relative;
             top: 10px;
             left: 10px;
@@ -33,10 +33,12 @@
 <body>
     <button id="toggle-rays">Mostrar Raízes de Luz</button>
     <button id="toggle-wireframe">Mostrar Wireframe</button>
-    <button id="toggle-reflective-floor">Ativar Chão Reflexivo</button>
     <div id="canvas-container"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lil-gui/0.16.1/lil-gui.min.js"></script>
     <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://threejs.org/examples/js/geometries/TextGeometry.js"></script>
+    <script src="https://threejs.org/examples/fonts/helvetiker_regular.typeface.json"></script>
     <script>
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
@@ -51,7 +53,6 @@
         const ambientLight = new THREE.AmbientLight(0x404040, 10);
         scene.add(ambientLight);
 
-        // Criação do chão normal e do reflexivo (não visível inicialmente)
         const floorGeometry = new THREE.PlaneGeometry(20, 20);
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -60,10 +61,19 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // Texturas e esferas
+        const wallGeometry = new THREE.PlaneGeometry(20, 10);
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+        const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall.rotation.y = Math.PI;
+        wall.position.set(0, 5, -6);
+        wall.receiveShadow = true;
+        scene.add(wall);
+
         const textureLoader = new THREE.TextureLoader();
+        // Aumentando o raio das esferas para 1.5
         const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32); 
         const spheres = [];
+        const originalMaterials = [];
 
         function createSphere(texturePath, positionX) {
             const material = new THREE.MeshStandardMaterial({
@@ -72,69 +82,154 @@
                 metalness: 1,
             });
             const sphere = new THREE.Mesh(sphereGeometry, material);
+            // Centralizando verticalmente as esferas
             sphere.position.set(positionX, 2, 0); 
             sphere.castShadow = true;
             sphere.receiveShadow = true;
             spheres.push(sphere);
+            originalMaterials.push(material);
             return sphere;
         }
 
-        const sphere1 = createSphere('https://threejsfundamentals.org/threejs/resources/images/wall.jpg', -3);
-        const sphere2 = createSphere('https://cdn.pixabay.com/photo/2016/02/01/04/27/background-1172581_1280.jpg', 0);
-        const sphere3 = createSphere('https://threejsfundamentals.org/threejs/resources/images/wall.jpg', 3);
+        const previousTextureURL = 'https://threejsfundamentals.org/threejs/resources/images/wall.jpg';
+        const previousTextureURL2 = 'https://cdn.pixabay.com/photo/2016/02/01/04/27/background-1172581_1280.jpg';
+
+        const sphere1 = createSphere(previousTextureURL, -3);
+        const sphere2 = createSphere(previousTextureURL2, 0);
+        const sphere3 = createSphere(previousTextureURL, 3);
         scene.add(sphere1);
         scene.add(sphere2);
         scene.add(sphere3);
 
-        // Função para criar o reflexo no chão
-        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(1024, { format: THREE.RGBAFormat, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
-        const cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
-        const reflectiveFloorMaterial = new THREE.MeshBasicMaterial({
-            envMap: cubeRenderTarget.texture,
-        });
+        const rayHelpers = [];
 
-        let reflectiveFloorEnabled = false;
+        function addLight(position) {
+            const spotLight = new THREE.SpotLight(0xffffff, 5);
+            spotLight.castShadow = true;
+            spotLight.position.copy(position);
+            spotLight.angle = Math.PI / 6;
+            spotLight.penumbra = 0.2;
 
-        // Alternar entre o chão normal e o reflexivo
-        document.getElementById('toggle-reflective-floor').addEventListener('click', () => {
-            reflectiveFloorEnabled = !reflectiveFloorEnabled;
+            const lightHelper = new THREE.SpotLightHelper(spotLight);
+            rayHelpers.push(lightHelper);
 
-            if (reflectiveFloorEnabled) {
-                // Substituir o material do chão pelo reflexivo
-                floor.material = reflectiveFloorMaterial;
-                document.getElementById('toggle-reflective-floor').innerText = "Desativar Chão Reflexivo";
-            } else {
-                // Reverter para o material padrão
-                floor.material = floorMaterial;
-                document.getElementById('toggle-reflective-floor').innerText = "Ativar Chão Reflexivo";
+            const lightIconGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const lightIconMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffff00,
+                emissive: 0xffff00,
+                emissiveIntensity: 1.5
+            });
+            const lightIcon = new THREE.Mesh(lightIconGeometry, lightIconMaterial);
+            lightIcon.position.copy(position);
+            scene.add(lightIcon);
+
+            scene.add(spotLight);
+        }
+
+        window.addEventListener('click', (event) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            if (event.clientY <= 50 && event.clientX >= rect.left && event.clientX <= rect.right) {
+                return;
             }
+
+            const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            const vector = new THREE.Vector3(mouseX, mouseY, 0.5);
+            vector.unproject(camera);
+            const dir = vector.sub(camera.position).normalize();
+            const distance = -camera.position.z / dir.z;
+            const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+
+            addLight(pos);
         });
 
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        let raysVisible = false;
+
+        document.getElementById('toggle-rays').addEventListener('click', () => {
+            raysVisible = !raysVisible;
+            rayHelpers.forEach(helper => {
+                if (raysVisible) {
+                    scene.add(helper);
+                } else {
+                    scene.remove(helper);
+                }
+            });
+            document.getElementById('toggle-rays').innerText = raysVisible ? "Ocultar Raízes de Luz" : "Mostrar Raízes de Luz";
+        });
+
+        let wireframeVisible = false;
+
+        document.getElementById('toggle-wireframe').addEventListener('click', () => {
+            wireframeVisible = !wireframeVisible;
+
+            const wireframeMaterial = new THREE.MeshBasicMaterial({ wireframe: true, color: 0xffffff });
+
+            spheres.forEach((sphere, index) => {
+                sphere.material = wireframeVisible ? wireframeMaterial : originalMaterials[index];
+            });
+
+            floor.material = wireframeVisible ? wireframeMaterial : floorMaterial;
+            wall.material = wireframeVisible ? wireframeMaterial : wallMaterial;
+        });
+
+        let selectedSphere = null;
+        let offset = new THREE.Vector3();
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function onMouseDown(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(spheres);
+
+            if (intersects.length > 0) {
+                selectedSphere = intersects[0].object;
+                offset.copy(intersects[0].point).sub(selectedSphere.position);
+            }
+        }
+
+        function onMouseMove(event) {
+            if (selectedSphere) {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(floor);
+
+                if (intersects.length > 0) {
+                    selectedSphere.position.copy(intersects[0].point).add(offset);
+                    selectedSphere.position.y = Math.max(selectedSphere.position.y, 1);
+                }
+            }
+        }
+
+        function onMouseUp() {
+            if (selectedSphere) {
+                selectedSphere.material.emissive.set(0x000000);
+                selectedSphere = null;
+            }
+        }
+
+        window.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
 
         function animate() {
             requestAnimationFrame(animate);
 
-            if (reflectiveFloorEnabled) {
-                // Atualizar o reflexo do cubo
-                floor.visible = false;  // Ocultar o chão antes de renderizar o cubo
-                cubeCamera.position.copy(camera.position);  // Posição da câmera para capturar o reflexo
-                cubeCamera.update(renderer, scene);
-                floor.visible = true;  // Mostrar o chão novamente
-            }
+            // Fazendo as esferas girarem ao longo dos eixos X e Y
+            spheres.forEach(sphere => {
+                sphere.rotation.x += 0.01;
+                sphere.rotation.y += 0.01;
+            });
 
             renderer.render(scene, camera);
         }
 
         animate();
-
-        window.addEventListener('resize', () => {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            renderer.setSize(width, height);
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
-        });
     </script>
 </body>
 </html>
