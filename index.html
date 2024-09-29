@@ -70,7 +70,8 @@
         scene.add(wall);
 
         const textureLoader = new THREE.TextureLoader();
-        const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+        // Aumentando o raio das esferas para 1.5
+        const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32); 
         const spheres = [];
         const originalMaterials = [];
 
@@ -81,7 +82,8 @@
                 metalness: 1,
             });
             const sphere = new THREE.Mesh(sphereGeometry, material);
-            sphere.position.set(positionX, 1, 0);
+            // Centralizando verticalmente as esferas
+            sphere.position.set(positionX, 2, 0); 
             sphere.castShadow = true;
             sphere.receiveShadow = true;
             spheres.push(sphere);
